@@ -17,11 +17,41 @@ export function resolveIsNixMode(env: NodeJS.ProcessEnv = process.env): boolean 
 
 export const isNixMode = resolveIsNixMode();
 
-// Support the remaining legacy pre-rebrand state dir.
-const LEGACY_STATE_DIRNAMES = [".clawdbot"] as const;
+/**
+ * Portable mode detection: When OPENCLAW_PORTABLE=1, the gateway is running
+ * from a portable USB installation. In this mode:
+ * - State directory is derived from OPENCLAW_PORTABLE_ROOT/data/.openclaw
+ * - No files are written outside the portable root
+ * - UI displays "Portable Mode" indicator
+ */
+export function resolveIsPortableMode(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.OPENCLAW_PORTABLE === "1";
+}
+
+export const isPortableMode = resolveIsPortableMode();
+
+/**
+ * Resolve state directory for portable mode.
+ * Returns undefined when not in portable mode or when OPENCLAW_PORTABLE_ROOT is not set.
+ */
+export function resolvePortableStateDir(
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  if (!resolveIsPortableMode(env)) {
+    return undefined;
+  }
+  const root = env.OPENCLAW_PORTABLE_ROOT?.trim();
+  if (!root) {
+    return undefined;
+  }
+  return path.resolve(path.join(root, "data", ".openclaw"));
+}
+
+// Support historical (and occasionally misspelled) legacy state dirs.
+const LEGACY_STATE_DIRNAMES = [".clawdbot", ".moldbot"] as const;
 const NEW_STATE_DIRNAME = ".openclaw";
 const CONFIG_FILENAME = "openclaw.json";
-const LEGACY_CONFIG_FILENAMES = ["clawdbot.json"] as const;
+const LEGACY_CONFIG_FILENAMES = ["clawdbot.json", "moldbot.json"] as const;
 
 function resolveDefaultHomeDir(): string {
   return resolveRequiredHomeDir(process.env, os.homedir);
