@@ -8,8 +8,10 @@ import {
   resolveConfigPathCandidate,
   resolveConfigPath,
   resolveGatewayPort,
+  resolveIsPortableMode,
   resolveOAuthDir,
   resolveOAuthPath,
+  resolvePortableStateDir,
   resolveStateDir,
 } from "./paths.js";
 
@@ -144,8 +146,13 @@ describe("state + config path candidates", () => {
     const expected = [
       path.join(resolvedHome, ".openclaw", "openclaw.json"),
       path.join(resolvedHome, ".openclaw", "clawdbot.json"),
+      path.join(resolvedHome, ".openclaw", "moldbot.json"),
       path.join(resolvedHome, ".clawdbot", "openclaw.json"),
       path.join(resolvedHome, ".clawdbot", "clawdbot.json"),
+      path.join(resolvedHome, ".clawdbot", "moldbot.json"),
+      path.join(resolvedHome, ".moldbot", "openclaw.json"),
+      path.join(resolvedHome, ".moldbot", "clawdbot.json"),
+      path.join(resolvedHome, ".moldbot", "moldbot.json"),
     ];
     expect(candidates).toEqual(expected);
   });
@@ -192,5 +199,60 @@ describe("state + config path candidates", () => {
       const resolved = resolveConfigPath(env, overrideDir, () => root);
       expect(resolved).toBe(path.join(overrideDir, "openclaw.json"));
     });
+  });
+});
+
+describe("portable mode detection", () => {
+  it("resolveIsPortableMode returns true when OPENCLAW_PORTABLE is 1", () => {
+    expect(resolveIsPortableMode({ OPENCLAW_PORTABLE: "1" } as NodeJS.ProcessEnv)).toBe(true);
+  });
+
+  it("resolveIsPortableMode returns false when OPENCLAW_PORTABLE is not set", () => {
+    expect(resolveIsPortableMode({} as NodeJS.ProcessEnv)).toBe(false);
+  });
+
+  it("resolveIsPortableMode returns false when OPENCLAW_PORTABLE is 0", () => {
+    expect(resolveIsPortableMode({ OPENCLAW_PORTABLE: "0" } as NodeJS.ProcessEnv)).toBe(false);
+  });
+
+  it("resolveIsPortableMode returns false for arbitrary string values", () => {
+    expect(resolveIsPortableMode({ OPENCLAW_PORTABLE: "yes" } as NodeJS.ProcessEnv)).toBe(false);
+  });
+});
+
+describe("portable state dir resolution", () => {
+  it("returns undefined when not in portable mode", () => {
+    expect(resolvePortableStateDir({} as NodeJS.ProcessEnv)).toBeUndefined();
+  });
+
+  it("returns portable state dir when OPENCLAW_PORTABLE=1 and OPENCLAW_PORTABLE_ROOT is set", () => {
+    const result = resolvePortableStateDir({
+      OPENCLAW_PORTABLE: "1",
+      OPENCLAW_PORTABLE_ROOT: "/usb/root",
+    } as NodeJS.ProcessEnv);
+    expect(result).toBe(path.resolve(path.join("/usb/root", "data", ".openclaw")));
+  });
+
+  it("returns undefined when OPENCLAW_PORTABLE=1 but OPENCLAW_PORTABLE_ROOT is not set", () => {
+    const result = resolvePortableStateDir({
+      OPENCLAW_PORTABLE: "1",
+    } as NodeJS.ProcessEnv);
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined when OPENCLAW_PORTABLE_ROOT is set but OPENCLAW_PORTABLE is not 1", () => {
+    const result = resolvePortableStateDir({
+      OPENCLAW_PORTABLE_ROOT: "/usb/root",
+    } as NodeJS.ProcessEnv);
+    expect(result).toBeUndefined();
+  });
+
+  it("resolves relative OPENCLAW_PORTABLE_ROOT to absolute path", () => {
+    const result = resolvePortableStateDir({
+      OPENCLAW_PORTABLE: "1",
+      OPENCLAW_PORTABLE_ROOT: "relative/path",
+    } as NodeJS.ProcessEnv);
+    expect(result).toBe(path.resolve(path.join("relative/path", "data", ".openclaw")));
+    expect(path.isAbsolute(result!)).toBe(true);
   });
 });
